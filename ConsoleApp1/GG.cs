@@ -1,8 +1,27 @@
 ﻿using System.Buffers;
 using System.IO.Pipelines;
+using System.Runtime.CompilerServices;
+using System.Text;
 
 class GG
 {
+    public int N { get; set; } = 10_000_000;
+
+    public void Setup()
+    {
+        Random rand = new();
+        using var sw = new StreamWriter("numbers.txt");
+        for (int i = 0; i < N; i++)
+        {
+            sw.WriteLine(rand.Next(0, 5000));
+        }
+    }
+
+    public void Cleanup()
+    {
+        File.Delete("numbers.txt");
+    }
+
     public async Task ScenarioPipelines()
     {
         await using var fs = File.OpenRead("numbers.txt");
@@ -34,5 +53,30 @@ class GG
         {
             throw new Exception($"Total: {total}");
         }
+    }
+
+    private static ReadOnlySpan<byte> NewLine => "\r\n"u8;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    private static bool TryReadNumber(ref ReadOnlySequence<byte> buffer, out int number)
+    {
+        var reader = new SequenceReader<byte>(buffer);
+        if (reader.TryReadTo(out ReadOnlySequence<byte> bytes, NewLine))
+        {
+            buffer = buffer.Slice(reader.Position);
+            if (bytes.IsSingleSegment)
+            {
+                number = int.Parse(bytes.FirstSpan);
+            }
+            else
+            {
+                number = int.Parse(Encoding.ASCII.GetString(bytes));
+            }
+
+            return true;
+        }
+
+        number = 0;
+        return false;
     }
 }
